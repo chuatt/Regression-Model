@@ -1,0 +1,134 @@
+---
+title: 'Regression Models Course Project'
+author: "Tong Tat"
+date: "December 24, 2017"
+output:
+  pdf_document: default
+  html_document:
+    highlight: tango
+    keep_md: yes
+    theme: yeti
+---
+
+**Rpub Link:** [Click Here](http://rpubs.com/chuatt/344265)
+
+## 1. Executive Summary
+
+This report is for Coursera Regression Models Course's Final Project. The dataset of interest is the **mtcars** dataset. The objective is to explore the relationship between the set of variables and miles per gallon (MPG) (outcome). Two main questions will be addressed.
+
+-- "Is an automatic or manual transmission better for MPG"
+
+-- "Quantify the MPG difference between automatic and manual transmissions"
+
+
+## 2. Data Exploration
+
+First, let's load the mtcars data. Then we'll take a look at the summary and look for any NA.
+Missing dependencies check will be done to look for any missing package that require installation. 
+
+```{r data.explore, warning=FALSE, echo=TRUE, cache=FALSE, message=FALSE}
+# Clear cache
+rm(list=ls())
+
+# Load dataset
+mcar <- data.frame(mtcars)
+data(mcar)
+
+# Summary of mtcats data
+summary(mcar)
+str(mcar)
+
+# Check NA
+sum(is.na(mcar))
+
+# Check for missing dependencies and load necessary R packages
+if(!require(stats)){install.packages('stats')}; library(stats)
+if(!require(psych)){install.packages('psych')}; library(psych)
+if(!require(MASS)){install.packages('MASS')}; library(MASS)
+if(!require(ggplot2)){install.packages('ggplot2')}; library(ggplot2)
+
+# Check initial overview of correlation
+pairs.panels(mcar)
+
+```
+
+
+Based on the Pearson correlation seen from the upper right corner of the pair.panels plot, we can see the variables which correlates with mpg are **cyl**, **disp**, **hp** and **wt**.
+
+
+
+## 3. Data Cleaning
+
+Note the variable **am** is numeric. Data transformation will be done to clean up this variable.
+
+```{r, warning=FALSE, echo=TRUE, cache=FALSE, message=FALSE}
+# Data Cleaning for AM variable.
+mcar$am <- as.factor(mcar$am)
+mcar$am <- gsub("0", "Automatic", mcar$am)
+mcar$am <- gsub("1", "Manual", mcar$am)
+```
+
+
+## 4. T-Test for Automatic vs Manual Transmission
+
+Using Welch Two Sample T-test, we investigate whether there is any significant between Automatic and Manual transmission. Since the p-value (<0.05), we reject the null hypothesis and conclude there is significant diference between Automatic and Manual transmission for MPG.
+
+```{r, warning=FALSE, echo=TRUE, cache=FALSE, message=FALSE}
+# Subset Automtic 
+auto <- subset(mcar, am=="Automatic")
+
+# Subset Manual
+man <- subset(mcar, am=="Manual", select=c(mpg, am))
+
+# Welch Two Sample T-test 
+t.test(auto$mpg, man$mpg, paired=FALSE, var.equal = FALSE)
+
+# Boxplot for Auto vs Manual mpg
+gg1 <- ggplot(mcar, aes(x=am, y=mpg, fill=am)) +
+  labs(title="Comparing Automatic vs Manual MPG", x="Type of Transmission", y="mpg") +
+  scale_fill_discrete(name = "Transmission") +
+  geom_boxplot()
+gg1
+```
+
+As we can seen above, the mean mpg for Automatic transmission is `r mean(auto$mpg)` and the mean mpg for Manual transmission is `r mean(man$mpg)`. Manual transmission give a better mpg than Automatic transmission.  
+
+
+## 4. Model Selection
+
+Using stepAIC from the MASS library, we will select the predictor variables by performing stepwise selection in both direction. The concept of stepAIC is to perform stepwise model selection by exact AIC (Akaike Information Criterion).
+
+```{r, warning=FALSE, echo=TRUE, cache=FALSE, message=FALSE}
+# Contruct lm model for stepAIC to consume later
+lm.all <- lm(mpg ~., data=mtcars)
+
+# Run stepAIC for best model selection
+best.model <- stepAIC(lm.all, direction="both", trace=FALSE)
+summary(best.model)
+
+```
+
+
+Based on the Akaike Information Criterion, our best model is using **wt**, **qsec** and **am**. The adjusted R-squared value is 0.8336 which means that the model explains 83% of the variation in mpg indicating it is a robust and highly predictive model. 
+
+
+## 5. Residual Plot
+
+Based on the residual plots below, we can see there is no heteroskedascity for the dataset.
+```{r, warning=FALSE, echo=TRUE, cache=FALSE, message=FALSE}
+par(mfrow=c(2,2))
+plot(best.model)
+
+```
+
+Computing the residual term below, since the value is very close to zero, we further confirm there is no heteroskedascity.  
+
+```{r, warning=FALSE, echo=TRUE, cache=FALSE, message=FALSE}
+
+y <- mcar$mpg
+e <- resid(best.model)
+yhat <- predict(best.model)
+max(abs(e-(y-yhat)))
+
+```
+
